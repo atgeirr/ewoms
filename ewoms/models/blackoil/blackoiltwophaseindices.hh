@@ -41,8 +41,8 @@ template <unsigned numSolventsV, unsigned numPolymersV, unsigned numEnergyV, uns
 struct BlackOilTwoPhaseIndices
 {
     //! Is phase enabled or not
-    static const bool oilEnabled = (disabledCanonicalCompIdx != 0);
-    static const bool waterEnabled = (disabledCanonicalCompIdx != 1);
+    static const bool waterEnabled = (disabledCanonicalCompIdx != 0);
+    static const bool oilEnabled = (disabledCanonicalCompIdx != 1);
     static const bool gasEnabled = (disabledCanonicalCompIdx != 2);
 
     //! Are solvents involved?
