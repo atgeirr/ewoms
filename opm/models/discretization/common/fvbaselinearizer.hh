@@ -199,7 +199,7 @@ public:
 
         int succeeded;
         try {
-            linearize_();
+            linearize_(gridView_());
             succeeded = 1;
         }
         catch (const std::exception& e)
@@ -220,6 +220,40 @@ public:
 
         if (!succeeded)
             throw NumericalIssue("A process did not succeed in linearizing the system");
+    }
+
+    template <class GridViewType>
+    void linearizeDomain(const GridViewType& gridView)
+    {
+        // we defer the initialization of the Jacobian matrix until here because the
+        // auxiliary modules usually assume the problem, model and grid to be fully
+        // initialized...
+        if (!jacobian_)
+            initFirstIteration_();
+
+        int succeeded;
+        try {
+            linearize_(gridView);
+            succeeded = 1;
+        }
+        catch (const std::exception& e)
+        {
+            std::cout << "rank " << gridView.comm().rank()
+                      << " caught an exception while linearizing:" << e.what()
+                      << "\n"  << std::flush;
+            succeeded = 0;
+        }
+        catch (...)
+        {
+            std::cout << "rank " << gridView.comm().rank()
+                      << " caught an exception while linearizing"
+                      << "\n"  << std::flush;
+            succeeded = 0;
+        }
+        succeeded = gridView.comm().min(succeeded);
+
+        if (!succeeded)
+            throw Opm::NumericalIssue("A process did not succeed in linearizing the system");
     }
 
     void finalize()
@@ -425,7 +459,8 @@ private:
     }
 
     // linearize the whole system
-    void linearize_()
+    template <class GridViewType>
+    void linearize_(const GridViewType& gridView)
     {
         resetSystem_();
 
@@ -447,7 +482,7 @@ private:
         std::exception_ptr exceptionPtr = nullptr;
 
         // relinearize the elements...
-        ThreadedEntityIterator<GridView, /*codim=*/0> threadedElemIt(gridView_());
+        ThreadedEntityIterator<GridView, /*codim=*/0> threadedElemIt(gridView);
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
