@@ -197,6 +197,9 @@ public:
         if (!jacobian_)
             initFirstIteration_();
 
+        // Called here because it is no longer called from linearize_().
+        resetSystem_();
+
         int succeeded;
         try {
             linearize_(gridView_());
@@ -323,6 +326,14 @@ public:
      */
     const std::map<unsigned, Constraints>& constraintsMap() const
     { return constraintsMap_; }
+
+    void resetSystem()
+    {
+        if (!jacobian_) {
+            initFirstIteration_();
+        }
+        resetSystem_();
+    }
 
 private:
     Simulator& simulator_()
@@ -458,11 +469,13 @@ private:
         }
     }
 
-    // linearize the whole system
+    // linearize the whole or part of the system
     template <class GridViewType>
     void linearize_(const GridViewType& gridView)
     {
-        resetSystem_();
+        // We do not call resetSystem_() here, since that will set
+        // the full system to zero, not just our part.
+        // Instead, that must be called before starting the linearization.
 
         // before the first iteration of each time step, we need to update the
         // constraints. (i.e., we assume that constraints can be time dependent, but they
@@ -482,13 +495,13 @@ private:
         std::exception_ptr exceptionPtr = nullptr;
 
         // relinearize the elements...
-        ThreadedEntityIterator<GridView, /*codim=*/0> threadedElemIt(gridView);
+        ThreadedEntityIterator<GridViewType, /*codim=*/0> threadedElemIt(gridView);
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
         {
-            ElementIterator elemIt = threadedElemIt.beginParallel();
-            ElementIterator nextElemIt = elemIt;
+            auto elemIt = threadedElemIt.beginParallel();
+            auto nextElemIt = elemIt;
             try {
                 for (; !threadedElemIt.isFinished(elemIt); elemIt = nextElemIt) {
                     // give the model and the problem a chance to prefetch the data required
