@@ -327,12 +327,43 @@ public:
     const std::map<unsigned, Constraints>& constraintsMap() const
     { return constraintsMap_; }
 
-    void resetSystem()
+    template <class GridViewType>
+    void resetSystem(const GridViewType& gridView)
     {
         if (!jacobian_) {
             initFirstIteration_();
         }
-        resetSystem_();
+
+        // loop over selected elements
+        ThreadedEntityIterator<GridViewType, /*codim=*/0> threadedElemIt(gridView);
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+            unsigned threadId = ThreadManager::threadId();
+            auto elemIt = threadedElemIt.beginParallel();
+            MatrixBlock zeroBlock;
+            zeroBlock = 0.0;
+            for (; !threadedElemIt.isFinished(elemIt); elemIt = threadedElemIt.increment()) {
+                // create an element context (the solution-based quantities are not
+                // available here!)
+                const Element& elem = *elemIt;
+                ElementContext& elemCtx = *elementCtx_[threadId];
+                elemCtx.updateStencil(elem);
+                // Set to zero the relevant residual and jacobian parts.
+                for (unsigned primaryDofIdx = 0;
+                     primaryDofIdx < elemCtx.numPrimaryDof(/*timeIdx=*/0);
+                     ++primaryDofIdx)
+                {
+                    unsigned globI = elemCtx.globalSpaceIndex(primaryDofIdx, /*timeIdx=*/0);
+                    residual_[globI] = 0.0;
+                    for (unsigned dofIdx = 0; dofIdx < elemCtx.numDof(/*timeIdx=*/0); ++dofIdx) {
+                        unsigned globJ = elemCtx.globalSpaceIndex(/*spaceIdx=*/dofIdx, /*timeIdx=*/0);
+                        jacobian_->setBlock(globJ, globI, zeroBlock);
+                    }
+                }
+            }
+        }
     }
 
 private:
