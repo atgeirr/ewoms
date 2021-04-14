@@ -785,6 +785,33 @@ public:
         }
     }
 
+    template <class GridViewType>
+    void invalidateAndUpdateIntensiveQuantities(unsigned timeIdx, const GridViewType& gridView) const
+    {
+        // loop over all elements...
+        ThreadedEntityIterator<GridViewType, /*codim=*/0> threadedElemIt(gridView);
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+
+            ElementContext elemCtx(simulator_);
+            auto elemIt = threadedElemIt.beginParallel();
+            for (; !threadedElemIt.isFinished(elemIt); elemIt = threadedElemIt.increment()) {
+                const Element& elem = *elemIt;
+                elemCtx.updatePrimaryStencil(elem);
+                // Mark cache for this element as invalid.
+                size_t numPrimaryDof = elemCtx.numPrimaryDof(timeIdx);
+                for (unsigned dofIdx = 0; dofIdx < numPrimaryDof; ++dofIdx) {
+                    unsigned globalIndex = elemCtx.globalSpaceIndex(dofIdx, timeIdx);
+                    setIntensiveQuantitiesCacheEntryValidity(globalIndex, timeIdx, false);
+                }
+                // Update for this element.
+                elemCtx.updatePrimaryIntensiveQuantities(/*timeIdx=*/0);
+            }
+        }
+    }
+
     /*!
      * \brief Move the intensive quantities for a given time index to the back.
      *
