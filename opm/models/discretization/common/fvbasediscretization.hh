@@ -630,8 +630,6 @@ public:
         // synchronize the ghost DOFs (if necessary)
         asImp_().syncOverlap();
 
-        simulator_.problem().initialSolutionApplied();
-
         // also set the solutions of the "previous" time steps to the initial solution.
         for (unsigned timeIdx = 1; timeIdx < historySize; ++timeIdx)
             solution(timeIdx) = solution(/*timeIdx=*/0);
@@ -643,6 +641,8 @@ public:
                 sol[dofIdx].checkDefined();
         }
 #endif // NDEBUG
+
+        simulator_.problem().initialSolutionApplied();
     }
 
     /*!
