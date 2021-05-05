@@ -357,8 +357,11 @@ public:
                 {
                     unsigned globI = elemCtx.globalSpaceIndex(primaryDofIdx, /*timeIdx=*/0);
                     residual_[globI] = 0.0;
-                    for (unsigned dofIdx = 0; dofIdx < elemCtx.numDof(/*timeIdx=*/0); ++dofIdx) {
-                        unsigned globJ = elemCtx.globalSpaceIndex(/*spaceIdx=*/dofIdx, /*timeIdx=*/0);
+                    // for (unsigned dofIdx = 0; dofIdx < elemCtx.numDof(/*timeIdx=*/0); ++dofIdx) {
+                    //     unsigned globJ = elemCtx.globalSpaceIndex(/*spaceIdx=*/dofIdx, /*timeIdx=*/0);
+                    //     jacobian_->setBlock(globJ, globI, zeroBlock);
+                    // }
+                    for (unsigned int globJ : sparsityPattern_[globI]) {
                         jacobian_->setBlock(globJ, globI, zeroBlock);
                     }
                 }
@@ -414,8 +417,8 @@ private:
 
         // for the main model, find out the global indices of the neighboring degrees of
         // freedom of each primary degree of freedom
-        using NeighborSet = std::set< unsigned >;
-        std::vector<NeighborSet> sparsityPattern(model.numTotalDof());
+        sparsityPattern_.clear();
+        sparsityPattern_.resize(model.numTotalDof());
 
         ElementIterator elemIt = gridView_().template begin<0>();
         const ElementIterator elemEndIt = gridView_().template end<0>();
@@ -428,7 +431,7 @@ private:
 
                 for (unsigned dofIdx = 0; dofIdx < stencil.numDof(); ++dofIdx) {
                     unsigned neighborIdx = stencil.globalSpaceIndex(dofIdx);
-                    sparsityPattern[myIdx].insert(neighborIdx);
+                    sparsityPattern_[myIdx].insert(neighborIdx);
                 }
             }
         }
@@ -437,13 +440,13 @@ private:
         // equations
         size_t numAuxMod = model.numAuxiliaryModules();
         for (unsigned auxModIdx = 0; auxModIdx < numAuxMod; ++auxModIdx)
-            model.auxiliaryModule(auxModIdx)->addNeighbors(sparsityPattern);
+            model.auxiliaryModule(auxModIdx)->addNeighbors(sparsityPattern_);
 
         // allocate raw matrix
         jacobian_.reset(new SparseMatrixAdapter(simulator_()));
 
         // create matrix structure based on sparsity pattern
-        jacobian_->reserve(sparsityPattern);
+        jacobian_->reserve(sparsityPattern_);
     }
 
     // reset the global linear system of equations.
@@ -674,6 +677,8 @@ private:
     LinearizationType linearizationType_;
 
     std::mutex globalMatrixMutex_;
+
+    std::vector<std::set<unsigned int>> sparsityPattern_;
 };
 
 } // namespace Opm
