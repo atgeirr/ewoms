@@ -554,7 +554,7 @@ private:
                         }
                     }
 
-                    const Element& elem = *elemIt;
+                    const auto& elem = *elemIt;
                     if (!linearizeNonLocalElements && elem.partitionType() != Dune::InteriorEntity)
                         continue;
 
@@ -588,7 +588,8 @@ private:
     }
 
     // linearize an element in the interior of the process' grid partition
-    void linearizeElement_(const Element& elem)
+    template <class ElementType>
+    void linearizeElement_(const ElementType& elem)
     {
         unsigned threadId = ThreadManager::threadId();
 
