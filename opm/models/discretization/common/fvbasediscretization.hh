@@ -798,6 +798,9 @@ public:
             ElementContext elemCtx(simulator_);
             auto elemIt = threadedElemIt.beginParallel();
             for (; !threadedElemIt.isFinished(elemIt); elemIt = threadedElemIt.increment()) {
+                if (elemIt->partitionType() != Dune::InteriorEntity) {
+                    continue;
+                }
                 const Element& elem = *elemIt;
                 elemCtx.updatePrimaryStencil(elem);
                 // Mark cache for this element as invalid.

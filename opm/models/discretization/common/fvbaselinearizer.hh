@@ -345,6 +345,9 @@ public:
             MatrixBlock zeroBlock;
             zeroBlock = 0.0;
             for (; !threadedElemIt.isFinished(elemIt); elemIt = threadedElemIt.increment()) {
+                if (elemIt->partitionType() != Dune::InteriorEntity) {
+                    continue;
+                }
                 // create an element context (the solution-based quantities are not
                 // available here!)
                 const Element& elem = *elemIt;
