@@ -226,7 +226,7 @@ public:
     }
 
     template <class GridViewType>
-    void linearizeDomain(const GridViewType& gridView)
+    void linearizeDomain(const GridViewType& gridView, const std::optional<std::vector<bool>>& isInterior)
     {
         // we defer the initialization of the Jacobian matrix until here because the
         // auxiliary modules usually assume the problem, model and grid to be fully
@@ -236,7 +236,7 @@ public:
 
         int succeeded;
         try {
-            linearize_(gridView);
+            linearize_(gridView, isInterior);
             succeeded = 1;
         }
         catch (const std::exception& e)
@@ -508,7 +508,8 @@ private:
 
     // linearize the whole or part of the system
     template <class GridViewType>
-    void linearize_(const GridViewType& gridView)
+    void linearize_(const GridViewType& gridView,
+                    const std::optional<std::vector<bool>>& isInterior = std::optional<std::vector<bool>>())
     {
         // We do not call resetSystem_() here, since that will set
         // the full system to zero, not just our part.
@@ -556,13 +557,13 @@ private:
 
                     const auto& elem = *elemIt;
                     // HACK!!! TODO: fix so parallel assembly will still work.
-                    // if (!linearizeNonLocalElements && elem.partitionType() != Dune::InteriorEntity)
-                    //     continue;
-                    if (elem.partitionType() != Dune::InteriorEntity) {
+                    if (!linearizeNonLocalElements && elem.partitionType() != Dune::InteriorEntity)
                         continue;
-                    }
+                    // if (elem.partitionType() != Dune::InteriorEntity) {
+                    //     continue;
+                    // }
 
-                    linearizeElement_(elem);
+                    linearizeElement_(elem, isInterior);
                 }
             }
             // If an exception occurs in the parallel block, it won't escape the
@@ -591,9 +592,10 @@ private:
         applyConstraintsToLinearization_();
     }
 
+
     // linearize an element in the interior of the process' grid partition
     template <class ElementType>
-    void linearizeElement_(const ElementType& elem)
+    void linearizeElement_(const ElementType& elem, const std::optional<std::vector<bool>>& isInterior = std::optional<std::vector<bool>>())
     {
         unsigned threadId = ThreadManager::threadId();
 
@@ -611,12 +613,19 @@ private:
         for (unsigned primaryDofIdx = 0; primaryDofIdx < numPrimaryDof; ++ primaryDofIdx) {
             unsigned globI = elementCtx->globalSpaceIndex(/*spaceIdx=*/primaryDofIdx, /*timeIdx=*/0);
 
+            // TODO: This is not right for general parallel code. Probably.
             // update the right hand side
-            residual_[globI] += localLinearizer.residual(primaryDofIdx);
+            if (elem.partitionType() == Dune::InteriorEntity) {
+                residual_[globI] += localLinearizer.residual(primaryDofIdx);
+            }
 
             // update the global Jacobian matrix
             for (unsigned dofIdx = 0; dofIdx < elementCtx->numDof(/*timeIdx=*/0); ++ dofIdx) {
                 unsigned globJ = elementCtx->globalSpaceIndex(/*spaceIdx=*/dofIdx, /*timeIdx=*/0);
+                if (isInterior.has_value() && !isInterior.value()[globJ]) {
+                    continue;
+                }
+
                 jacobian_->addToBlock(globJ, globI, localLinearizer.jacobian(dofIdx, primaryDofIdx));
             }
         }
