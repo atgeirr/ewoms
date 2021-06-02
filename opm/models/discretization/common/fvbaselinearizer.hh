@@ -555,8 +555,12 @@ private:
                     }
 
                     const auto& elem = *elemIt;
-                    if (!linearizeNonLocalElements && elem.partitionType() != Dune::InteriorEntity)
+                    // HACK!!! TODO: fix so parallel assembly will still work.
+                    // if (!linearizeNonLocalElements && elem.partitionType() != Dune::InteriorEntity)
+                    //     continue;
+                    if (elem.partitionType() != Dune::InteriorEntity) {
                         continue;
+                    }
 
                     linearizeElement_(elem);
                 }
@@ -613,7 +617,6 @@ private:
             // update the global Jacobian matrix
             for (unsigned dofIdx = 0; dofIdx < elementCtx->numDof(/*timeIdx=*/0); ++ dofIdx) {
                 unsigned globJ = elementCtx->globalSpaceIndex(/*spaceIdx=*/dofIdx, /*timeIdx=*/0);
-
                 jacobian_->addToBlock(globJ, globI, localLinearizer.jacobian(dofIdx, primaryDofIdx));
             }
         }
