@@ -328,7 +328,8 @@ public:
     { return constraintsMap_; }
 
     template <class GridViewType>
-    void resetSystem(const GridViewType& gridView)
+    void resetSystem(const GridViewType& gridView,
+                     const std::optional<std::vector<bool>>& isInterior = std::optional<std::vector<bool>>())
     {
         if (!jacobian_) {
             initFirstIteration_();
@@ -345,9 +346,9 @@ public:
             MatrixBlock zeroBlock;
             zeroBlock = 0.0;
             for (; !threadedElemIt.isFinished(elemIt); elemIt = threadedElemIt.increment()) {
-                if (elemIt->partitionType() != Dune::InteriorEntity) {
-                    continue;
-                }
+                // if (elemIt->partitionType() != Dune::InteriorEntity) {
+                //     continue;
+                // }
                 // create an element context (the solution-based quantities are not
                 // available here!)
                 const Element& elem = *elemIt;
@@ -360,11 +361,13 @@ public:
                 {
                     unsigned globI = elemCtx.globalSpaceIndex(primaryDofIdx, /*timeIdx=*/0);
                     residual_[globI] = 0.0;
-                    // for (unsigned dofIdx = 0; dofIdx < elemCtx.numDof(/*timeIdx=*/0); ++dofIdx) {
-                    //     unsigned globJ = elemCtx.globalSpaceIndex(/*spaceIdx=*/dofIdx, /*timeIdx=*/0);
-                    //     jacobian_->setBlock(globJ, globI, zeroBlock);
-                    // }
-                    for (unsigned int globJ : sparsityPattern_[globI]) {
+
+                    // Zero Jacobian blocks only for rows that are considered interior.
+                    for (unsigned dofIdx = 0; dofIdx < elemCtx.numDof(/*timeIdx=*/0); ++dofIdx) {
+                        unsigned globJ = elemCtx.globalSpaceIndex(/*spaceIdx=*/dofIdx, /*timeIdx=*/0);
+                        if (isInterior.has_value() && !isInterior.value()[globJ]) {
+                            continue;
+                        }
                         jacobian_->setBlock(globJ, globI, zeroBlock);
                     }
                 }
